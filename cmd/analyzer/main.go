@@ -13,16 +13,17 @@ import (
 )
 
 var (
-	projectPath   string
-	startStruct   string
-	depth         int
-	outputPath    string
-	format        string
-	blacklistPath string
-	apiKey        string
-	llmProvider   string
-	mermaidPath   string
-	verbose       bool
+	projectPath    string
+	startStruct    string
+	depth          int
+	outputPath     string
+	format         string
+	blacklistPath  string
+	apiKey         string
+	llmProvider    string
+	mermaidPath    string
+	visualizerPath string
+	verbose        bool
 )
 
 var rootCmd = &cobra.Command{
@@ -39,7 +40,8 @@ var rootCmd = &cobra.Command{
   go-struct-analyzer --project ./myapp --start UserService --depth 2
   go-struct-analyzer -p ./myapp -s UserService --llm glm -k $GLM_API_KEY
   go-struct-analyzer -p ./myapp -s UserService --llm claude -k $CLAUDE_API_KEY
-  go-struct-analyzer -p ./myapp -s UserService -b ./blacklist.yaml -v`,
+  go-struct-analyzer -p ./myapp -s UserService -b ./blacklist.yaml -v
+  go-struct-analyzer -p ./myapp -s UserService --visualizer ./output.json`,
 	Run: runAnalyzer,
 }
 
@@ -53,6 +55,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&apiKey, "api-key", "k", "", "LLM API Key（可选，也可通过环境变量设置）")
 	rootCmd.Flags().StringVar(&llmProvider, "llm", "glm", "LLM 后端：glm（默认）, claude")
 	rootCmd.Flags().StringVar(&mermaidPath, "mermaid", "", "Mermaid 图输出路径（可选）")
+	rootCmd.Flags().StringVar(&visualizerPath, "visualizer", "", "可视化工具 JSON 输出路径（可选）")
 	rootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "详细输出模式")
 
 	rootCmd.MarkFlagRequired("project")
@@ -195,7 +198,18 @@ func runAnalyzer(cmd *cobra.Command, args []string) {
 		fmt.Printf("Mermaid 图已保存至: %s\n", mermaidPath)
 	}
 
-	// 8. 输出摘要
+	// 8. 生成可视化工具 JSON（可选）
+	if visualizerPath != "" {
+		vizReporter := reporter.NewVisualizerReporter()
+		vizOutput := vizReporter.Generate(result)
+		if err := vizReporter.SaveToFile(vizOutput, visualizerPath); err != nil {
+			fmt.Fprintf(os.Stderr, "错误: 保存可视化 JSON 失败: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("可视化 JSON 已保存至: %s\n", visualizerPath)
+	}
+
+	// 9. 输出摘要
 	if len(result.Cycles) > 0 {
 		fmt.Printf("\n警告: 发现 %d 个循环依赖\n", len(result.Cycles))
 		for _, cycle := range result.Cycles {

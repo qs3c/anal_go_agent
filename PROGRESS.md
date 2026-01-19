@@ -40,6 +40,18 @@
 - [x] Mermaid 依赖图
 - [x] JSON 输出
 - [x] 统计信息（被依赖次数排行）
+- [x] 可视化工具 JSON 输出 (`--visualizer`) ✅ (2026-01-19)
+  - 对接 code_visualizer 前端项目
+  - 自动按深度分层布局
+  - 支持结构体元素和连线关系
+
+### Phase 5: 前端集成 ✅ (2026-01-19)
+- [x] 前端项目导入功能
+  - `src/hooks/useExcalidrawSync.ts`: 添加 `importFromAnalyzer` 和 `clearAll` 函数
+  - `src/components/ExcalidrawWrapper.tsx`: 添加导入按钮和文件选择处理
+- [x] 支持从 JSON 文件导入结构体和连线
+- [x] 清空功能（Clear All 按钮）
+- [x] TypeScript 编译通过，构建成功
 
 ---
 
@@ -95,7 +107,8 @@ LLM 描述生成: ✅ 成功
 
 ## 下次工作建议
 
-1. 实现接口实现关系检测
-2. 考虑添加更多 LLM 后端支持
-3. 处理跨包类型解析的边缘情况
-4. 补充更多模块的单元测试（reporter、llm）
+1. 在浏览器中实际测试前端导入功能（localhost:5173）
+2. 实现接口实现关系检测
+3. 考虑添加更多 LLM 后端支持
+4. 处理跨包类型解析的边缘情况
+5. 补充更多模块的单元测试（reporter、llm）

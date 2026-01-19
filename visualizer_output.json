@@ -1,0 +1,439 @@
+{
+  "projectPath": "/Users/albert/Desktop/fromGithub/anal_go_agent/testdata/sample_project",
+  "startStruct": "UserService",
+  "generatedAt": "2026-01-19 22:02:11",
+  "structs": [
+    {
+      "id": "struct-UserService",
+      "x": 470,
+      "y": 100,
+      "metadata": {
+        "type": "struct-box",
+        "name": "UserService",
+        "description": "用户服务，处理用户数据及缓存管理",
+        "descriptionTitle": "service",
+        "fields": [
+          {
+            "name": "repo",
+            "type": "*repository.UserRepository",
+            "description": "负责用户数据持久化",
+            "expanded": false
+          },
+          {
+            "name": "cache",
+            "type": "*cache.Cache",
+            "description": "提供用户数据缓存",
+            "expanded": false
+          }
+        ],
+        "methods": [
+          {
+            "name": "CreateUser",
+            "params": "name string, age int",
+            "returnType": "error",
+            "description": "创建新用户",
+            "expanded": false
+          },
+          {
+            "name": "GetUserByID",
+            "params": "id int64",
+            "returnType": "(*model.User, error)",
+            "description": "根据ID查询用户",
+            "expanded": false
+          },
+          {
+            "name": "UpdateUser",
+            "params": "user *model.User",
+            "returnType": "error",
+            "description": "更新用户信息",
+            "expanded": false
+          },
+          {
+            "name": "DeleteUser",
+            "params": "id int64",
+            "returnType": "error",
+            "description": "删除用户",
+            "expanded": false
+          }
+        ],
+        "currentView": "fields",
+        "fontSize": "m",
+        "color": "red"
+      }
+    },
+    {
+      "id": "struct-UserRepository",
+      "x": 140,
+      "y": 420,
+      "metadata": {
+        "type": "struct-box",
+        "name": "UserRepository",
+        "description": "用户数据仓库，负责数据持久化",
+        "descriptionTitle": "repository",
+        "fields": [
+          {
+            "name": "db",
+            "type": "*Database",
+            "description": "数据库操作接口",
+            "expanded": false
+          }
+        ],
+        "methods": [
+          {
+            "name": "Save",
+            "params": "user model.User",
+            "returnType": "error",
+            "description": "保存用户到数据库",
+            "expanded": false
+          },
+          {
+            "name": "FindByID",
+            "params": "id int64",
+            "returnType": "(*model.User, error)",
+            "description": "根据ID查找用户",
+            "expanded": false
+          },
+          {
+            "name": "Update",
+            "params": "user *model.User",
+            "returnType": "error",
+            "description": "更新用户信息",
+            "expanded": false
+          },
+          {
+            "name": "Delete",
+            "params": "id int64",
+            "returnType": "error",
+            "description": "删除用户",
+            "expanded": false
+          },
+          {
+            "name": "FindAll",
+            "params": "",
+            "returnType": "([]*model.User, error)",
+            "description": "查找所有用户",
+            "expanded": false
+          }
+        ],
+        "currentView": "fields",
+        "fontSize": "m",
+        "color": "blue"
+      }
+    },
+    {
+      "id": "struct-Cache",
+      "x": 470,
+      "y": 420,
+      "metadata": {
+        "type": "struct-box",
+        "name": "Cache",
+        "description": "实现本地与Redis的双级缓存服务",
+        "descriptionTitle": "cache",
+        "fields": [
+          {
+            "name": "client",
+            "type": "*RedisClient",
+            "description": "Redis客户端连接",
+            "expanded": false
+          },
+          {
+            "name": "ttl",
+            "type": "time.Duration",
+            "description": "缓存数据过期时间",
+            "expanded": false
+          },
+          {
+            "name": "mu",
+            "type": "sync.RWMutex",
+            "description": "并发安全读写锁",
+            "expanded": false
+          },
+          {
+            "name": "local",
+            "type": "map[int64]interface{}",
+            "description": "本地内存数据存储",
+            "expanded": false
+          }
+        ],
+        "methods": [
+          {
+            "name": "Get",
+            "params": "key int64",
+            "returnType": "interface{}",
+            "description": "获取缓存数据",
+            "expanded": false
+          },
+          {
+            "name": "Set",
+            "params": "key int64, value interface{}",
+            "description": "设置缓存数据",
+            "expanded": false
+          },
+          {
+            "name": "Delete",
+            "params": "key int64",
+            "description": "删除缓存数据",
+            "expanded": false
+          },
+          {
+            "name": "Clear",
+            "params": "",
+            "description": "清空所有缓存",
+            "expanded": false
+          }
+        ],
+        "currentView": "fields",
+        "fontSize": "m",
+        "color": "blue"
+      }
+    },
+    {
+      "id": "struct-User",
+      "x": 800,
+      "y": 420,
+      "metadata": {
+        "type": "struct-box",
+        "name": "User",
+        "description": "用户实体，定义基本属性与元数据",
+        "descriptionTitle": "model",
+        "fields": [
+          {
+            "name": "ID",
+            "type": "int64",
+            "description": "用户唯一标识",
+            "expanded": false
+          },
+          {
+            "name": "Name",
+            "type": "string",
+            "description": "用户姓名",
+            "expanded": false
+          },
+          {
+            "name": "Age",
+            "type": "int",
+            "description": "用户年龄",
+            "expanded": false
+          },
+          {
+            "name": "Email",
+            "type": "string",
+            "description": "电子邮箱地址",
+            "expanded": false
+          },
+          {
+            "name": "CreatedAt",
+            "type": "time.Time",
+            "description": "记录创建时间",
+            "expanded": false
+          },
+          {
+            "name": "UpdatedAt",
+            "type": "time.Time",
+            "description": "记录更新时间",
+            "expanded": false
+          }
+        ],
+        "methods": [
+          {
+            "name": "Validate",
+            "params": "",
+            "returnType": "error",
+            "description": "校验数据合法性",
+            "expanded": false
+          },
+          {
+            "name": "IsAdult",
+            "params": "",
+            "returnType": "bool",
+            "description": "判断是否成年",
+            "expanded": false
+          },
+          {
+            "name": "UpdateTimestamp",
+            "params": "",
+            "description": "更新修改时间",
+            "expanded": false
+          }
+        ],
+        "currentView": "fields",
+        "fontSize": "m",
+        "color": "blue"
+      }
+    },
+    {
+      "id": "struct-Database",
+      "x": 305,
+      "y": 740,
+      "metadata": {
+        "type": "struct-box",
+        "name": "Database",
+        "description": "数据库操作封装，提供基础增删改查功能",
+        "descriptionTitle": "repository",
+        "fields": [
+          {
+            "name": "connectionString",
+            "type": "string",
+            "description": "数据库连接地址",
+            "expanded": false
+          },
+          {
+            "name": "pool",
+            "type": "*ConnectionPool",
+            "description": "连接池管理实例",
+            "expanded": false
+          }
+        ],
+        "methods": [
+          {
+            "name": "Insert",
+            "params": "table string, data interface{}",
+            "returnType": "error",
+            "description": "向指定表插入数据",
+            "expanded": false
+          },
+          {
+            "name": "QueryByID",
+            "params": "table string, id int64",
+            "returnType": "(interface{}, error)",
+            "description": "根据ID查询单条数据",
+            "expanded": false
+          },
+          {
+            "name": "QueryAll",
+            "params": "table string",
+            "returnType": "([]interface{}, error)",
+            "description": "查询表中所有数据",
+            "expanded": false
+          },
+          {
+            "name": "Update",
+            "params": "table string, id int64, data interface{}",
+            "returnType": "error",
+            "description": "根据ID更新指定数据",
+            "expanded": false
+          },
+          {
+            "name": "DeleteByID",
+            "params": "table string, id int64",
+            "returnType": "error",
+            "description": "根据ID删除指定数据",
+            "expanded": false
+          }
+        ],
+        "currentView": "fields",
+        "fontSize": "m",
+        "color": "green"
+      }
+    },
+    {
+      "id": "struct-RedisClient",
+      "x": 635,
+      "y": 740,
+      "metadata": {
+        "type": "struct-box",
+        "name": "RedisClient",
+        "description": "Redis 客户端封装，提供缓存数据的存取与操作",
+        "descriptionTitle": "cache",
+        "fields": [
+          {
+            "name": "address",
+            "type": "string",
+            "description": "Redis 服务器地址",
+            "expanded": false
+          },
+          {
+            "name": "password",
+            "type": "string",
+            "description": "连接认证密码",
+            "expanded": false
+          },
+          {
+            "name": "db",
+            "type": "int",
+            "description": "数据库索引",
+            "expanded": false
+          },
+          {
+            "name": "pool",
+            "type": "*RedisPool",
+            "description": "Redis 连接池",
+            "expanded": false
+          }
+        ],
+        "methods": [
+          {
+            "name": "Get",
+            "params": "key int64",
+            "returnType": "interface{}",
+            "description": "获取键对应的值",
+            "expanded": false
+          },
+          {
+            "name": "Set",
+            "params": "key int64, value interface{}, ttl time.Duration",
+            "description": "设置键值及过期时间",
+            "expanded": false
+          },
+          {
+            "name": "Delete",
+            "params": "key int64",
+            "description": "删除指定键数据",
+            "expanded": false
+          },
+          {
+            "name": "FlushAll",
+            "params": "",
+            "description": "清空所有数据",
+            "expanded": false
+          }
+        ],
+        "currentView": "fields",
+        "fontSize": "m",
+        "color": "green"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "fromId": "struct-UserService",
+      "toId": "struct-UserRepository",
+      "label": "字段"
+    },
+    {
+      "fromId": "struct-UserService",
+      "toId": "struct-Cache",
+      "label": "字段"
+    },
+    {
+      "fromId": "struct-UserService",
+      "toId": "struct-User",
+      "label": "初始化"
+    },
+    {
+      "fromId": "struct-UserRepository",
+      "toId": "struct-Database",
+      "label": "字段"
+    },
+    {
+      "fromId": "struct-Cache",
+      "toId": "struct-RedisClient",
+      "label": "字段"
+    },
+    {
+      "fromId": "struct-Database",
+      "toId": "struct-ConnectionPool",
+      "label": "字段"
+    },
+    {
+      "fromId": "struct-Database",
+      "toId": "struct-User",
+      "label": "初始化"
+    },
+    {
+      "fromId": "struct-RedisClient",
+      "toId": "struct-RedisPool",
+      "label": "字段"
+    }
+  ]
+}
