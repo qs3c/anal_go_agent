@@ -13,12 +13,12 @@ type Traverser struct {
 	parser      *parser.Parser
 	depAnalyzer *DependencyAnalyzer
 	filter      *ScopeFilter
-	llmClient   *llm.Client
+	llmClient   llm.LLMClient
 	verbose     bool
 }
 
 // NewTraverser 创建遍历器
-func NewTraverser(p *parser.Parser, filter *ScopeFilter, llmClient *llm.Client, verbose bool) *Traverser {
+func NewTraverser(p *parser.Parser, filter *ScopeFilter, llmClient llm.LLMClient, verbose bool) *Traverser {
 	return &Traverser{
 		parser:      p,
 		depAnalyzer: NewDependencyAnalyzer(p, filter, verbose),

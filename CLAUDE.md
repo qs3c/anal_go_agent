@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-`go-struct-analyzer` 是一个 Go 语言结构体依赖分析 CLI 工具，用于分析 Go 项目中结构体之间的依赖关系，并可选使用 Claude API 生成代码描述。
+`go-struct-analyzer` 是一个 Go 语言结构体依赖分析 CLI 工具，用于分析 Go 项目中结构体之间的依赖关系，并可选使用 LLM API（支持 GLM/Claude）生成代码描述。
 
 ## 项目结构
 
@@ -20,7 +20,9 @@ go-struct-analyzer/
 │   │   ├── blacklist.go           # 黑名单过滤
 │   │   └── scope_filter.go        # 范围过滤（排除标准库/第三方）
 │   ├── llm/
-│   │   ├── client.go              # Claude API 客户端
+│   │   ├── interface.go           # LLM 接口定义
+│   │   ├── claude.go              # Claude API 客户端
+│   │   ├── glm.go                 # GLM (智谱) API 客户端
 │   │   ├── prompt.go              # Prompt 模板构建
 │   │   └── response.go            # 响应解析
 │   └── reporter/
@@ -38,7 +40,7 @@ go-struct-analyzer/
 2. **配置格式**: 黑名单使用 YAML 格式 (`gopkg.in/yaml.v3`)
 3. **AST 解析**: 使用 Go 标准库 `go/ast`, `go/parser`, `go/token`
 4. **遍历算法**: BFS（广度优先搜索）按深度分析依赖
-5. **LLM 集成**: 直接调用 Claude API，支持重试和降级
+5. **LLM 集成**: 支持多后端（GLM 默认，Claude 可选），接口抽象，支持重试和降级
 
 ## 开发规范
 
@@ -54,7 +56,8 @@ go-struct-analyzer/
 | -s, --start | 是 | 起点结构体名称 |
 | -d, --depth | 否 | 分析深度，默认 2 |
 | -o, --output | 否 | 输出文件，默认 ./analysis_report.md |
-| -k, --api-key | 否 | Claude API Key |
+| --llm | 否 | LLM 后端：glm（默认）, claude |
+| -k, --api-key | 否 | LLM API Key（或用环境变量 GLM_API_KEY / CLAUDE_API_KEY）|
 | -b, --blacklist | 否 | 黑名单文件路径 |
 | --mermaid | 否 | Mermaid 图输出路径 |
 | -v, --verbose | 否 | 详细输出模式 |

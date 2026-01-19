@@ -12,8 +12,8 @@ import (
 	"github.com/user/go-struct-analyzer/internal/types"
 )
 
-// Client 是 Claude API 客户端
-type Client struct {
+// ClaudeClient 是 Claude API 客户端
+type ClaudeClient struct {
 	apiKey     string
 	baseURL    string
 	httpClient *http.Client
@@ -21,9 +21,9 @@ type Client struct {
 	maxRetries int
 }
 
-// NewClient 创建新的 LLM 客户端
-func NewClient(apiKey string) *Client {
-	return &Client{
+// NewClaudeClient 创建 Claude 客户端
+func NewClaudeClient(apiKey string) *ClaudeClient {
+	return &ClaudeClient{
 		apiKey:  apiKey,
 		baseURL: "https://api.anthropic.com",
 		httpClient: &http.Client{
@@ -34,8 +34,8 @@ func NewClient(apiKey string) *Client {
 	}
 }
 
-// APIRequest 表示 API 请求体
-type APIRequest struct {
+// ClaudeAPIRequest 表示 Claude API 请求体
+type ClaudeAPIRequest struct {
 	Model     string    `json:"model"`
 	MaxTokens int       `json:"max_tokens"`
 	Messages  []Message `json:"messages"`
@@ -47,8 +47,8 @@ type Message struct {
 	Content string `json:"content"`
 }
 
-// APIResponse 表示 API 响应
-type APIResponse struct {
+// ClaudeAPIResponse 表示 Claude API 响应
+type ClaudeAPIResponse struct {
 	Content []ContentBlock `json:"content"`
 	Error   *APIError      `json:"error,omitempty"`
 }
@@ -66,7 +66,7 @@ type APIError struct {
 }
 
 // AnalyzeStruct 分析结构体并返回描述
-func (c *Client) AnalyzeStruct(info *types.StructInfo) (*types.LLMAnalysisResult, error) {
+func (c *ClaudeClient) AnalyzeStruct(info *types.StructInfo) (*types.LLMAnalysisResult, error) {
 	prompt := buildPrompt(info)
 
 	var lastErr error
@@ -89,8 +89,8 @@ func (c *Client) AnalyzeStruct(info *types.StructInfo) (*types.LLMAnalysisResult
 }
 
 // callAPI 调用 Claude API
-func (c *Client) callAPI(prompt string) (string, error) {
-	request := APIRequest{
+func (c *ClaudeClient) callAPI(prompt string) (string, error) {
+	request := ClaudeAPIRequest{
 		Model:     c.model,
 		MaxTokens: 2000,
 		Messages: []Message{
@@ -130,7 +130,7 @@ func (c *Client) callAPI(prompt string) (string, error) {
 		return "", fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
 	}
 
-	var apiResp APIResponse
+	var apiResp ClaudeAPIResponse
 	if err := json.Unmarshal(body, &apiResp); err != nil {
 		return "", fmt.Errorf("failed to parse response: %w", err)
 	}
@@ -147,6 +147,11 @@ func (c *Client) callAPI(prompt string) (string, error) {
 }
 
 // IsConfigured 检查客户端是否已配置 API Key
-func (c *Client) IsConfigured() bool {
+func (c *ClaudeClient) IsConfigured() bool {
 	return c.apiKey != ""
+}
+
+// Name 返回提供商名称
+func (c *ClaudeClient) Name() string {
+	return "Claude"
 }

@@ -20,6 +20,7 @@ var (
 	format        string
 	blacklistPath string
 	apiKey        string
+	llmProvider   string
 	mermaidPath   string
 	verbose       bool
 )
@@ -28,11 +29,16 @@ var rootCmd = &cobra.Command{
 	Use:   "go-struct-analyzer",
 	Short: "Go 项目结构体依赖关系分析工具",
 	Long: `分析 Go 语言项目中结构体之间的依赖关系，
-并使用 Claude API 生成功能描述和可视化依赖图。
+并使用 LLM API 生成功能描述和可视化依赖图。
+
+支持的 LLM 后端：
+  - glm: 智谱 GLM（默认）
+  - claude: Anthropic Claude
 
 示例:
   go-struct-analyzer --project ./myapp --start UserService --depth 2
-  go-struct-analyzer -p ./myapp -s UserService -k $CLAUDE_API_KEY
+  go-struct-analyzer -p ./myapp -s UserService --llm glm -k $GLM_API_KEY
+  go-struct-analyzer -p ./myapp -s UserService --llm claude -k $CLAUDE_API_KEY
   go-struct-analyzer -p ./myapp -s UserService -b ./blacklist.yaml -v`,
 	Run: runAnalyzer,
 }
@@ -44,7 +50,8 @@ func init() {
 	rootCmd.Flags().StringVarP(&outputPath, "output", "o", "./analysis_report.md", "输出文件路径")
 	rootCmd.Flags().StringVarP(&format, "format", "f", "markdown", "输出格式：markdown, json")
 	rootCmd.Flags().StringVarP(&blacklistPath, "blacklist", "b", "", "黑名单文件路径")
-	rootCmd.Flags().StringVarP(&apiKey, "api-key", "k", "", "Claude API Key（可选，也可通过 CLAUDE_API_KEY 环境变量设置）")
+	rootCmd.Flags().StringVarP(&apiKey, "api-key", "k", "", "LLM API Key（可选，也可通过环境变量设置）")
+	rootCmd.Flags().StringVar(&llmProvider, "llm", "glm", "LLM 后端：glm（默认）, claude")
 	rootCmd.Flags().StringVar(&mermaidPath, "mermaid", "", "Mermaid 图输出路径（可选）")
 	rootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "详细输出模式")
 
@@ -116,16 +123,25 @@ func runAnalyzer(cmd *cobra.Command, args []string) {
 	}
 
 	// 3. 创建 LLM 客户端（可选）
-	var llmClient *llm.Client
+	var llmClient llm.LLMClient
 	effectiveAPIKey := apiKey
+
+	// 根据 LLM 后端选择环境变量
 	if effectiveAPIKey == "" {
-		effectiveAPIKey = os.Getenv("CLAUDE_API_KEY")
+		switch llmProvider {
+		case "glm", "zhipu":
+			effectiveAPIKey = os.Getenv("GLM_API_KEY")
+		case "claude", "anthropic":
+			effectiveAPIKey = os.Getenv("CLAUDE_API_KEY")
+		default:
+			effectiveAPIKey = os.Getenv("GLM_API_KEY")
+		}
 	}
 
 	if effectiveAPIKey != "" {
-		llmClient = llm.NewClient(effectiveAPIKey)
+		llmClient = llm.NewLLMClient(llmProvider, effectiveAPIKey)
 		if verbose {
-			fmt.Println("已启用 LLM 分析功能")
+			fmt.Printf("已启用 LLM 分析功能 (后端: %s)\n", llmClient.Name())
 		}
 	} else if verbose {
 		fmt.Println("未配置 API Key，将跳过 LLM 分析")

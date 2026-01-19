@@ -26,11 +26,14 @@
 - [x] BFS 遍历器
 
 ### Phase 3: LLM 集成 ✅
+- [x] LLM 接口抽象层（支持多后端）
 - [x] Claude API 客户端
+- [x] GLM (智谱) API 客户端
 - [x] Prompt 模板构建
 - [x] 响应解析
 - [x] 错误处理和重试机制
 - [x] 可选 LLM 模式（无 API Key 时跳过）
+- [x] CLI 参数 `--llm` 选择后端（glm/claude）
 
 ### Phase 4: 报告生成 ✅
 - [x] Markdown 报告（按深度分组）
@@ -78,8 +81,10 @@
 项目路径: testdata/sample_project
 起点结构体: UserService
 分析深度: 2
+LLM 后端: GLM
 结果: 成功分析 6 个结构体，10 个依赖关系
-输出: test_report.md, test_deps.mmd
+LLM 描述生成: ✅ 成功
+输出: analysis_report.md
 ```
 
 ---
@@ -88,4 +93,4 @@
 
 1. 优先修复"变量名误识别"问题
 2. 补充单元测试
-3. 使用真实 API Key 测试 LLM 功能
+3. 考虑添加更多 LLM 后端支持
