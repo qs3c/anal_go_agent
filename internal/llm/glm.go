@@ -29,7 +29,7 @@ func NewGLMClient(apiKey string) *GLMClient {
 		httpClient: &http.Client{
 			Timeout: 60 * time.Second,
 		},
-		model:      "glm-4-flash",
+		model:      "glm-4.7",
 		maxRetries: 3,
 	}
 }

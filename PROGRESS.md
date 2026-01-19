@@ -46,7 +46,10 @@
 ## 待完成/优化
 
 ### 高优先级
-- [ ] 单元测试编写
+- [x] 单元测试编写 ✅ (2026-01-19)
+  - `internal/parser/type_resolver_test.go` - 类型推断测试
+  - `internal/analyzer/scope_filter_test.go` - 范围过滤测试
+  - `internal/analyzer/blacklist_test.go` - 黑名单测试
 - [ ] 接口实现关系检测（当前未完全实现）
 - [ ] 构造函数返回类型推断优化
 
@@ -64,10 +67,11 @@
 
 ## 已知问题
 
-1. **变量名误识别**: 方法调用分析时，可能将变量名（如 `cache`）误认为类型名
-   - 位置: `internal/analyzer/dependency.go`
-   - 影响: 生成的依赖图可能包含小写的变量名节点
-   - 修复建议: 增强类型上下文推断
+1. ~~**变量名误识别**: 方法调用分析时，可能将变量名（如 `cache`）误认为类型名~~ ✅ 已修复 (2026-01-19)
+   - 修复内容:
+     - `internal/parser/type_resolver.go`: `InferType` 无法推断类型时返回空字符串
+     - `internal/analyzer/scope_filter.go`: `ShouldAnalyze` 增加首字母大写验证
+     - `internal/analyzer/dependency.go`: 跳过空类型名
 
 2. **跨包类型解析**: 对于带包前缀的类型（如 `model.User`），需要正确解析完整路径
    - 当前状态: 基本可用，但可能有边缘情况
@@ -91,6 +95,7 @@ LLM 描述生成: ✅ 成功
 
 ## 下次工作建议
 
-1. 优先修复"变量名误识别"问题
-2. 补充单元测试
-3. 考虑添加更多 LLM 后端支持
+1. 实现接口实现关系检测
+2. 考虑添加更多 LLM 后端支持
+3. 处理跨包类型解析的边缘情况
+4. 补充更多模块的单元测试（reporter、llm）

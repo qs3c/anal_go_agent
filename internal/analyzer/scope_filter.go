@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"strings"
+	"unicode"
 
 	"github.com/user/go-struct-analyzer/internal/parser"
 )
@@ -43,6 +44,11 @@ func (sf *ScopeFilter) collectProjectPackages() {
 
 // ShouldAnalyze 判断类型是否应该被分析
 func (sf *ScopeFilter) ShouldAnalyze(typeName string) bool {
+	// 0. 跳过空类型名
+	if typeName == "" {
+		return false
+	}
+
 	// 1. 清理类型名
 	typeName = strings.TrimPrefix(typeName, "*")
 	typeName = strings.TrimPrefix(typeName, "[]")
@@ -67,7 +73,17 @@ func (sf *ScopeFilter) ShouldAnalyze(typeName string) bool {
 		return false
 	}
 
-	// 5. 检查是否为项目内部类型
+	// 5. 验证类型名格式：Go 导出类型必须首字母大写
+	// 这可以过滤掉被误识别的变量名（通常小写开头）
+	baseTypeName := typeName
+	if idx := strings.LastIndex(typeName, "."); idx != -1 {
+		baseTypeName = typeName[idx+1:]
+	}
+	if len(baseTypeName) > 0 && !unicode.IsUpper(rune(baseTypeName[0])) {
+		return false
+	}
+
+	// 6. 检查是否为项目内部类型
 	return sf.isInternalType(typeName)
 }
 

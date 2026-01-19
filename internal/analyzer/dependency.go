@@ -172,6 +172,10 @@ func (a *DependencyAnalyzer) analyzeMethodBody(structName string, funcDecl *ast.
 			// 检查方法调用: b.Method()
 			if selExpr, ok := node.Fun.(*ast.SelectorExpr); ok {
 				receiverType := a.typeResolver.InferType(selExpr.X, ctx)
+				// 跳过无法推断类型的情况（避免将变量名误识别为类型名）
+				if receiverType == "" {
+					return true
+				}
 				baseType := parser.ExtractBaseType(receiverType)
 				if a.filter.ShouldAnalyze(baseType) {
 					deps = append(deps, types.Dependency{

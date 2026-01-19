@@ -172,8 +172,12 @@ func (r *TypeResolver) InferType(expr ast.Expr, ctx *TypeContext) string {
 		if typeName := ctx.GetType(ident.Name); typeName != "" {
 			return typeName
 		}
+		// 变量名无法推断类型时，返回空字符串而不是变量名
+		// 避免将变量名误识别为类型名
+		return ""
 	}
 
+	// 对于非标识符表达式（如选择器表达式 pkg.Type），尝试获取类型名
 	return r.parser.getTypeName(expr)
 }
 
