@@ -59,6 +59,30 @@ go-struct-analyzer/
 | --mermaid | 否 | Mermaid 图输出路径 |
 | -v, --verbose | 否 | 详细输出模式 |
 
+## Claude Code 工作流程
+
+### 开始工作时
+1. 先阅读 `PROGRESS.md` 了解当前进度、待办事项和已知问题
+2. 根据用户指示或 PROGRESS.md 中的"下次工作建议"继续工作
+
+### 结束工作时
+1. 更新 `PROGRESS.md`：
+   - 将完成的任务标记为 `[x]`
+   - 添加新发现的问题到"已知问题"
+   - 更新"下次工作建议"
+   - 更新"最后更新"日期
+2. 提交并推送更改：
+   ```bash
+   git add .
+   git commit -m "描述本次工作内容"
+   git push
+   ```
+
+### 重要原则
+- 每次会话结束前必须更新 PROGRESS.md 并推送
+- 保持 PROGRESS.md 的准确性，方便其他设备上的 Claude Code 接手
+- 遇到重大技术决策时，更新 CLAUDE.md 的"技术决策"部分
+
 ## 注意事项
 
 - 需求文档在上级目录: `../requirement.md`
