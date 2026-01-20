@@ -21,6 +21,7 @@ var (
 	blacklistPath  string
 	apiKey         string
 	llmProvider    string
+	llmModel       string
 	mermaidPath    string
 	visualizerPath string
 	noCache        bool
@@ -55,6 +56,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&blacklistPath, "blacklist", "b", "", "黑名单文件路径")
 	rootCmd.Flags().StringVarP(&apiKey, "api-key", "k", "", "LLM API Key（可选，也可通过环境变量设置）")
 	rootCmd.Flags().StringVar(&llmProvider, "llm", "glm", "LLM 后端：glm（默认）, claude")
+	rootCmd.Flags().StringVarP(&llmModel, "model", "m", "", "LLM 模型（可选，默认: glm-4-flash / claude-sonnet-4-20250514）")
 	rootCmd.Flags().StringVar(&mermaidPath, "mermaid", "", "Mermaid 图输出路径（可选）")
 	rootCmd.Flags().StringVar(&visualizerPath, "visualizer", "", "可视化工具 JSON 输出路径（可选）")
 	rootCmd.Flags().BoolVar(&noCache, "no-cache", false, "禁用 LLM 分析结果缓存")
@@ -144,9 +146,9 @@ func runAnalyzer(cmd *cobra.Command, args []string) {
 	}
 
 	if effectiveAPIKey != "" {
-		llmClient = llm.NewLLMClient(llmProvider, effectiveAPIKey)
+		llmClient = llm.NewLLMClientWithModel(llmProvider, effectiveAPIKey, llmModel)
 		if verbose {
-			fmt.Printf("已启用 LLM 分析功能 (后端: %s)\n", llmClient.Name())
+			fmt.Printf("已启用 LLM 分析功能 (后端: %s, 模型: %s)\n", llmClient.Name(), llmClient.Model())
 		}
 	} else if verbose {
 		fmt.Println("未配置 API Key，将跳过 LLM 分析")

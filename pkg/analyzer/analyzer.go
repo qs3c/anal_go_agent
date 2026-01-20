@@ -61,6 +61,9 @@ type Options struct {
 	// LLMProvider LLM 提供商: "glm", "claude"（可选）
 	LLMProvider string
 
+	// LLMModel LLM 模型（可选，默认: glm-4-flash / claude-sonnet-4-20250514）
+	LLMModel string
+
 	// APIKey LLM API Key（可选）
 	APIKey string
 
@@ -144,7 +147,7 @@ func (a *Analyzer) Analyze() (*Result, error) {
 
 	// 3. 创建 LLM 客户端（可选）
 	if a.opts.APIKey != "" && a.opts.LLMProvider != "" {
-		a.llmClient = llm.NewLLMClient(a.opts.LLMProvider, a.opts.APIKey)
+		a.llmClient = llm.NewLLMClientWithModel(a.opts.LLMProvider, a.opts.APIKey, a.opts.LLMModel)
 	}
 
 	// 4. 创建过滤器和遍历器

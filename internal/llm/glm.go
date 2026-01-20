@@ -21,15 +21,26 @@ type GLMClient struct {
 	maxRetries int
 }
 
+// DefaultGLMModel 默认 GLM 模型
+const DefaultGLMModel = "glm-4-flash"
+
 // NewGLMClient 创建 GLM 客户端
 func NewGLMClient(apiKey string) *GLMClient {
+	return NewGLMClientWithModel(apiKey, "")
+}
+
+// NewGLMClientWithModel 创建指定模型的 GLM 客户端
+func NewGLMClientWithModel(apiKey, model string) *GLMClient {
+	if model == "" {
+		model = DefaultGLMModel
+	}
 	return &GLMClient{
 		apiKey:  apiKey,
 		baseURL: "https://open.bigmodel.cn/api/paas/v4",
 		httpClient: &http.Client{
 			Timeout: 60 * time.Second,
 		},
-		model:      "glm-4.7",
+		model:      model,
 		maxRetries: 3,
 	}
 }
@@ -152,4 +163,9 @@ func (c *GLMClient) IsConfigured() bool {
 // Name 返回提供商名称
 func (c *GLMClient) Name() string {
 	return "GLM"
+}
+
+// Model 返回当前使用的模型
+func (c *GLMClient) Model() string {
+	return c.model
 }

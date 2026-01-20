@@ -64,9 +64,11 @@ go-struct-analyzer/
 | -d, --depth | 否 | 分析深度，默认 2 |
 | -o, --output | 否 | 输出文件，默认 ./analysis_report.md |
 | --llm | 否 | LLM 后端：glm（默认）, claude |
+| -m, --model | 否 | LLM 模型（默认: glm-4-flash / claude-sonnet-4-20250514）|
 | -k, --api-key | 否 | LLM API Key（或用环境变量 GLM_API_KEY / CLAUDE_API_KEY）|
 | -b, --blacklist | 否 | 黑名单文件路径 |
 | --mermaid | 否 | Mermaid 图输出路径 |
+| --no-cache | 否 | 禁用 LLM 分析结果缓存 |
 | -v, --verbose | 否 | 详细输出模式 |
 
 ## Claude Code 工作流程
@@ -136,9 +138,10 @@ a, _ := analyzer.New(analyzer.Options{
     ProjectPath: "./myproject",
     StartStruct: "UserService",
     MaxDepth:    2,
-    LLMProvider: "glm",  // 或 "claude"
+    LLMProvider: "glm",           // 或 "claude"
+    LLMModel:    "glm-4-flash",   // 可选，指定模型
     APIKey:      os.Getenv("GLM_API_KEY"),
-    EnableCache: true,   // 启用缓存
+    EnableCache: true,            // 启用缓存
 })
 ```
 

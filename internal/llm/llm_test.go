@@ -335,7 +335,7 @@ func TestNewLLMClient_Aliases(t *testing.T) {
 		{"zhipu", "GLM"},
 		{"claude", "Claude"},
 		{"anthropic", "Claude"},
-		{"unknown", "Claude"}, // 默认使用 Claude
+		{"unknown", "GLM"}, // 默认使用 GLM
 	}
 
 	for _, tt := range tests {

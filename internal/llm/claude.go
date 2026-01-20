@@ -21,15 +21,26 @@ type ClaudeClient struct {
 	maxRetries int
 }
 
+// DefaultClaudeModel 默认 Claude 模型
+const DefaultClaudeModel = "claude-sonnet-4-20250514"
+
 // NewClaudeClient 创建 Claude 客户端
 func NewClaudeClient(apiKey string) *ClaudeClient {
+	return NewClaudeClientWithModel(apiKey, "")
+}
+
+// NewClaudeClientWithModel 创建指定模型的 Claude 客户端
+func NewClaudeClientWithModel(apiKey, model string) *ClaudeClient {
+	if model == "" {
+		model = DefaultClaudeModel
+	}
 	return &ClaudeClient{
 		apiKey:  apiKey,
 		baseURL: "https://api.anthropic.com",
 		httpClient: &http.Client{
 			Timeout: 60 * time.Second,
 		},
-		model:      "claude-sonnet-4-20250514",
+		model:      model,
 		maxRetries: 3,
 	}
 }
@@ -154,4 +165,9 @@ func (c *ClaudeClient) IsConfigured() bool {
 // Name 返回提供商名称
 func (c *ClaudeClient) Name() string {
 	return "Claude"
+}
+
+// Model 返回当前使用的模型
+func (c *ClaudeClient) Model() string {
+	return c.model
 }
