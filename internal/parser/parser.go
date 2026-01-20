@@ -8,7 +8,9 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/user/go-struct-analyzer/internal/types"
 )
@@ -25,6 +27,7 @@ type Parser struct {
 	imports    map[string]map[string]string  // 文件路径 -> (别名 -> 导入路径)
 	moduleName string                        // 项目模块名
 	verbose    bool
+	mu         sync.RWMutex                  // 保护并发写入
 }
 
 // NewParser 创建一个新的解析器
@@ -58,47 +61,280 @@ func (p *Parser) ParseProject(projectPath string) error {
 		return err
 	}
 
-	// 3. 解析每个文件
-	for _, filePath := range goFiles {
-		astFile, err := parser.ParseFile(p.fset, filePath, nil, parser.ParseComments)
-		if err != nil {
-			if p.verbose {
-				println("Warning: failed to parse file:", filePath, err.Error())
-			}
-			continue
-		}
-		p.files[filePath] = astFile
-		p.imports[filePath] = p.buildImportMap(astFile)
+	// 3. 并发解析每个文件
+	if err := p.parseFilesConcurrently(goFiles); err != nil {
+		return err
 	}
 
-	// 4. 提取所有结构体
-	for filePath, file := range p.files {
-		p.extractStructs(file, filePath)
-	}
+	// 4. 并发提取结构体、方法、接口、函数
+	p.extractAllConcurrently()
 
-	// 5. 提取所有方法
-	for filePath, file := range p.files {
-		p.extractMethods(file, filePath)
-	}
-
-	// 6. 关联方法到结构体
+	// 5. 关联方法到结构体（需要在提取完成后执行）
+	p.mu.Lock()
 	for structName, methods := range p.methods {
 		if structInfo, ok := p.structs[structName]; ok {
 			structInfo.Methods = methods
 		}
 	}
+	p.mu.Unlock()
 
-	// 7. 提取所有接口
-	for filePath, file := range p.files {
-		p.extractInterfaces(file, filePath)
+	return nil
+}
+
+// parseFilesConcurrently 并发解析文件
+func (p *Parser) parseFilesConcurrently(goFiles []string) error {
+	// 限制并发数，避免打开太多文件
+	maxWorkers := runtime.NumCPU()
+	if maxWorkers > 8 {
+		maxWorkers = 8
 	}
 
-	// 8. 提取所有函数（用于构造函数检测）
-	for filePath, file := range p.files {
-		p.extractFunctions(file, filePath)
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, maxWorkers) // 信号量控制并发数
+	errChan := make(chan error, len(goFiles))
+
+	for _, filePath := range goFiles {
+		wg.Add(1)
+		go func(fp string) {
+			defer wg.Done()
+			sem <- struct{}{}        // 获取信号量
+			defer func() { <-sem }() // 释放信号量
+
+			astFile, err := parser.ParseFile(p.fset, fp, nil, parser.ParseComments)
+			if err != nil {
+				if p.verbose {
+					println("Warning: failed to parse file:", fp, err.Error())
+				}
+				return // 单个文件解析失败不影响其他文件
+			}
+
+			importMap := p.buildImportMap(astFile)
+
+			// 并发安全地写入 map
+			p.mu.Lock()
+			p.files[fp] = astFile
+			p.imports[fp] = importMap
+			p.mu.Unlock()
+		}(filePath)
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	// 收集错误（目前单个文件失败不返回错误）
+	for err := range errChan {
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
+}
+
+// extractAllConcurrently 并发提取结构体、方法、接口、函数
+func (p *Parser) extractAllConcurrently() {
+	// 收集所有文件路径
+	p.mu.RLock()
+	filePaths := make([]string, 0, len(p.files))
+	for fp := range p.files {
+		filePaths = append(filePaths, fp)
+	}
+	p.mu.RUnlock()
+
+	var wg sync.WaitGroup
+
+	// 限制并发数
+	maxWorkers := runtime.NumCPU()
+	if maxWorkers > 8 {
+		maxWorkers = 8
+	}
+	sem := make(chan struct{}, maxWorkers)
+
+	for _, filePath := range filePaths {
+		wg.Add(1)
+		go func(fp string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			p.mu.RLock()
+			file := p.files[fp]
+			p.mu.RUnlock()
+
+			if file == nil {
+				return
+			}
+
+			// 提取并收集结果
+			structs := p.extractStructsFromFile(file, fp)
+			methods := p.extractMethodsFromFile(file, fp)
+			interfaces := p.extractInterfacesFromFile(file, fp)
+			functions := p.extractFunctionsFromFile(file, fp)
+
+			// 批量写入，减少锁竞争
+			p.mu.Lock()
+			for name, info := range structs {
+				p.structs[name] = info
+			}
+			for name, methodList := range methods {
+				p.methods[name] = append(p.methods[name], methodList...)
+			}
+			for name, info := range interfaces {
+				p.interfaces[name] = info
+			}
+			for name, info := range functions {
+				p.functions[name] = info
+			}
+			p.mu.Unlock()
+		}(filePath)
+	}
+
+	wg.Wait()
+}
+
+// extractStructsFromFile 从单个文件提取结构体（返回结果而非直接写入）
+func (p *Parser) extractStructsFromFile(file *ast.File, filePath string) map[string]*types.StructInfo {
+	result := make(map[string]*types.StructInfo)
+	packageName := file.Name.Name
+
+	ast.Inspect(file, func(n ast.Node) bool {
+		genDecl, ok := n.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.TYPE {
+			return true
+		}
+
+		for _, spec := range genDecl.Specs {
+			typeSpec, ok := spec.(*ast.TypeSpec)
+			if !ok {
+				continue
+			}
+
+			structType, ok := typeSpec.Type.(*ast.StructType)
+			if !ok {
+				continue
+			}
+
+			info := &types.StructInfo{
+				Name:       typeSpec.Name.Name,
+				Package:    packageName,
+				FilePath:   filePath,
+				SourceCode: p.nodeToString(genDecl),
+				Fields:     p.extractFields(structType),
+			}
+
+			result[info.Name] = info
+		}
+
+		return true
+	})
+
+	return result
+}
+
+// extractMethodsFromFile 从单个文件提取方法（返回结果而非直接写入）
+func (p *Parser) extractMethodsFromFile(file *ast.File, filePath string) map[string][]types.MethodInfo {
+	result := make(map[string][]types.MethodInfo)
+
+	ast.Inspect(file, func(n ast.Node) bool {
+		funcDecl, ok := n.(*ast.FuncDecl)
+		if !ok || funcDecl.Recv == nil {
+			return true
+		}
+
+		receiverType := p.getReceiverType(funcDecl.Recv)
+		baseType := strings.TrimPrefix(receiverType, "*")
+
+		methodInfo := types.MethodInfo{
+			Name:       funcDecl.Name.Name,
+			Signature:  p.getMethodSignature(funcDecl),
+			Receiver:   receiverType,
+			IsExported: isExported(funcDecl.Name.Name),
+			SourceCode: p.nodeToString(funcDecl),
+		}
+
+		result[baseType] = append(result[baseType], methodInfo)
+
+		return true
+	})
+
+	return result
+}
+
+// extractInterfacesFromFile 从单个文件提取接口（返回结果而非直接写入）
+func (p *Parser) extractInterfacesFromFile(file *ast.File, filePath string) map[string]*types.InterfaceInfo {
+	result := make(map[string]*types.InterfaceInfo)
+	packageName := file.Name.Name
+
+	ast.Inspect(file, func(n ast.Node) bool {
+		genDecl, ok := n.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.TYPE {
+			return true
+		}
+
+		for _, spec := range genDecl.Specs {
+			typeSpec, ok := spec.(*ast.TypeSpec)
+			if !ok {
+				continue
+			}
+
+			interfaceType, ok := typeSpec.Type.(*ast.InterfaceType)
+			if !ok {
+				continue
+			}
+
+			info := &types.InterfaceInfo{
+				Name:       typeSpec.Name.Name,
+				Package:    packageName,
+				FilePath:   filePath,
+				Methods:    p.extractInterfaceMethods(interfaceType),
+				SourceCode: p.nodeToString(genDecl),
+			}
+
+			result[info.Name] = info
+		}
+
+		return true
+	})
+
+	return result
+}
+
+// extractFunctionsFromFile 从单个文件提取函数（返回结果而非直接写入）
+func (p *Parser) extractFunctionsFromFile(file *ast.File, filePath string) map[string]*types.FunctionInfo {
+	result := make(map[string]*types.FunctionInfo)
+	packageName := file.Name.Name
+
+	ast.Inspect(file, func(n ast.Node) bool {
+		funcDecl, ok := n.(*ast.FuncDecl)
+		if !ok || funcDecl.Recv != nil {
+			return true
+		}
+
+		funcName := funcDecl.Name.Name
+		if !strings.HasPrefix(funcName, "New") {
+			return true
+		}
+
+		returnType := p.getReturnType(funcDecl)
+		if returnType == "" {
+			return true
+		}
+
+		info := &types.FunctionInfo{
+			Name:       funcName,
+			Package:    packageName,
+			FilePath:   filePath,
+			ReturnType: returnType,
+			Signature:  p.getMethodSignature(funcDecl),
+		}
+
+		key := packageName + "." + funcName
+		result[key] = info
+
+		return true
+	})
+
+	return result
 }
 
 // GetModuleName 返回项目模块名
@@ -203,41 +439,6 @@ func (p *Parser) buildImportMap(file *ast.File) map[string]string {
 	return importMap
 }
 
-// extractStructs 从文件中提取结构体
-func (p *Parser) extractStructs(file *ast.File, filePath string) {
-	packageName := file.Name.Name
-
-	ast.Inspect(file, func(n ast.Node) bool {
-		genDecl, ok := n.(*ast.GenDecl)
-		if !ok || genDecl.Tok != token.TYPE {
-			return true
-		}
-
-		for _, spec := range genDecl.Specs {
-			typeSpec, ok := spec.(*ast.TypeSpec)
-			if !ok {
-				continue
-			}
-
-			structType, ok := typeSpec.Type.(*ast.StructType)
-			if !ok {
-				continue
-			}
-
-			info := &types.StructInfo{
-				Name:       typeSpec.Name.Name,
-				Package:    packageName,
-				FilePath:   filePath,
-				SourceCode: p.nodeToString(genDecl),
-				Fields:     p.extractFields(structType),
-			}
-
-			p.structs[info.Name] = info
-		}
-
-		return true
-	})
-}
 
 // extractFields 从结构体中提取字段
 func (p *Parser) extractFields(structType *ast.StructType) []types.FieldInfo {
@@ -279,31 +480,6 @@ func (p *Parser) extractFields(structType *ast.StructType) []types.FieldInfo {
 	return fields
 }
 
-// extractMethods 从文件中提取方法
-func (p *Parser) extractMethods(file *ast.File, filePath string) {
-	ast.Inspect(file, func(n ast.Node) bool {
-		funcDecl, ok := n.(*ast.FuncDecl)
-		if !ok || funcDecl.Recv == nil {
-			return true
-		}
-
-		// 获取接收者类型
-		receiverType := p.getReceiverType(funcDecl.Recv)
-		baseType := strings.TrimPrefix(receiverType, "*")
-
-		methodInfo := types.MethodInfo{
-			Name:       funcDecl.Name.Name,
-			Signature:  p.getMethodSignature(funcDecl),
-			Receiver:   receiverType,
-			IsExported: isExported(funcDecl.Name.Name),
-			SourceCode: p.nodeToString(funcDecl),
-		}
-
-		p.methods[baseType] = append(p.methods[baseType], methodInfo)
-
-		return true
-	})
-}
 
 // getReceiverType 获取方法接收者类型
 func (p *Parser) getReceiverType(recv *ast.FieldList) string {
@@ -407,41 +583,6 @@ func (p *Parser) GetImports(filePath string) map[string]string {
 	return p.imports[filePath]
 }
 
-// extractInterfaces 从文件中提取接口
-func (p *Parser) extractInterfaces(file *ast.File, filePath string) {
-	packageName := file.Name.Name
-
-	ast.Inspect(file, func(n ast.Node) bool {
-		genDecl, ok := n.(*ast.GenDecl)
-		if !ok || genDecl.Tok != token.TYPE {
-			return true
-		}
-
-		for _, spec := range genDecl.Specs {
-			typeSpec, ok := spec.(*ast.TypeSpec)
-			if !ok {
-				continue
-			}
-
-			interfaceType, ok := typeSpec.Type.(*ast.InterfaceType)
-			if !ok {
-				continue
-			}
-
-			info := &types.InterfaceInfo{
-				Name:       typeSpec.Name.Name,
-				Package:    packageName,
-				FilePath:   filePath,
-				Methods:    p.extractInterfaceMethods(interfaceType),
-				SourceCode: p.nodeToString(genDecl),
-			}
-
-			p.interfaces[info.Name] = info
-		}
-
-		return true
-	})
-}
 
 // extractInterfaceMethods 提取接口方法
 func (p *Parser) extractInterfaceMethods(interfaceType *ast.InterfaceType) []types.InterfaceMethod {
@@ -514,43 +655,6 @@ func (p *Parser) getFuncSignature(funcType *ast.FuncType) string {
 	return sig.String()
 }
 
-// extractFunctions 从文件中提取函数（用于构造函数检测）
-func (p *Parser) extractFunctions(file *ast.File, filePath string) {
-	packageName := file.Name.Name
-
-	ast.Inspect(file, func(n ast.Node) bool {
-		funcDecl, ok := n.(*ast.FuncDecl)
-		if !ok || funcDecl.Recv != nil { // 跳过方法，只处理函数
-			return true
-		}
-
-		// 只处理 New 开头的函数（构造函数模式）
-		funcName := funcDecl.Name.Name
-		if !strings.HasPrefix(funcName, "New") {
-			return true
-		}
-
-		// 获取返回类型
-		returnType := p.getReturnType(funcDecl)
-		if returnType == "" {
-			return true
-		}
-
-		info := &types.FunctionInfo{
-			Name:       funcName,
-			Package:    packageName,
-			FilePath:   filePath,
-			ReturnType: returnType,
-			Signature:  p.getMethodSignature(funcDecl),
-		}
-
-		// 使用包名+函数名作为 key，避免跨包冲突
-		key := packageName + "." + funcName
-		p.functions[key] = info
-
-		return true
-	})
-}
 
 // getReturnType 获取函数的主要返回类型
 func (p *Parser) getReturnType(funcDecl *ast.FuncDecl) string {

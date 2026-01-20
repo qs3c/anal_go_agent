@@ -23,6 +23,7 @@ var (
 	llmProvider    string
 	mermaidPath    string
 	visualizerPath string
+	noCache        bool
 	verbose        bool
 )
 
@@ -56,6 +57,7 @@ func init() {
 	rootCmd.Flags().StringVar(&llmProvider, "llm", "glm", "LLM 后端：glm（默认）, claude")
 	rootCmd.Flags().StringVar(&mermaidPath, "mermaid", "", "Mermaid 图输出路径（可选）")
 	rootCmd.Flags().StringVar(&visualizerPath, "visualizer", "", "可视化工具 JSON 输出路径（可选）")
+	rootCmd.Flags().BoolVar(&noCache, "no-cache", false, "禁用 LLM 分析结果缓存")
 	rootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "详细输出模式")
 
 	rootCmd.MarkFlagRequired("project")
@@ -154,12 +156,26 @@ func runAnalyzer(cmd *cobra.Command, args []string) {
 	filter := analyzer.NewScopeFilter(p, blacklist)
 	traverser := analyzer.NewTraverser(p, filter, llmClient, verbose)
 
-	// 5. 执行分析
+	// 5. 创建缓存（如果未禁用且有 LLM 客户端）
+	if !noCache && llmClient != nil && llmClient.IsConfigured() {
+		cache := analyzer.NewAnalysisCache(absProjectPath)
+		traverser.SetCache(cache)
+		if verbose {
+			fmt.Printf("LLM 缓存已启用 (缓存条目: %d)\n", cache.Size())
+		}
+	}
+
+	// 6. 执行分析
 	if verbose {
 		fmt.Println("\n正在分析依赖关系...")
 	}
 
 	result := traverser.Analyze(startStruct, depth, absProjectPath)
+
+	// 保存缓存
+	if err := traverser.SaveCache(); err != nil && verbose {
+		fmt.Printf("警告: 保存缓存失败: %v\n", err)
+	}
 
 	if verbose {
 		fmt.Printf("分析完成，共分析 %d 个结构体，%d 个依赖关系\n\n", result.TotalStructs, result.TotalDeps)

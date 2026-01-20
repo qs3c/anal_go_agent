@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"sync"
 	"time"
 
 	"github.com/user/go-struct-analyzer/internal/llm"
@@ -8,12 +9,22 @@ import (
 	"github.com/user/go-struct-analyzer/internal/types"
 )
 
+// LLMConcurrency LLM 并发调用数限制
+const LLMConcurrency = 3
+
+// llmTask 表示一个 LLM 分析任务
+type llmTask struct {
+	index int
+	info  *types.StructInfo
+}
+
 // Traverser 使用 BFS 遍历结构体依赖
 type Traverser struct {
 	parser      *parser.Parser
 	depAnalyzer *DependencyAnalyzer
 	filter      *ScopeFilter
 	llmClient   llm.LLMClient
+	cache       *AnalysisCache
 	verbose     bool
 }
 
@@ -28,6 +39,19 @@ func NewTraverser(p *parser.Parser, filter *ScopeFilter, llmClient llm.LLMClient
 	}
 }
 
+// SetCache 设置缓存
+func (t *Traverser) SetCache(cache *AnalysisCache) {
+	t.cache = cache
+}
+
+// SaveCache 保存缓存
+func (t *Traverser) SaveCache() error {
+	if t.cache != nil {
+		return t.cache.Save()
+	}
+	return nil
+}
+
 // Analyze 从起始结构体开始进行 BFS 分析
 func (t *Traverser) Analyze(startStruct string, maxDepth int, projectPath string) *types.AnalysisResult {
 	visited := make(map[string]bool)
@@ -40,6 +64,9 @@ func (t *Traverser) Analyze(startStruct string, maxDepth int, projectPath string
 		Structs:     []types.StructAnalysis{},
 		GeneratedAt: time.Now().Format("2006-01-02 15:04:05"),
 	}
+
+	// 收集需要 LLM 分析的结构体信息
+	var llmTasks []llmTask
 
 	for len(queue) > 0 {
 		task := queue[0]
@@ -77,10 +104,18 @@ func (t *Traverser) Analyze(startStruct string, maxDepth int, projectPath string
 			deps[i].Depth = task.Depth + 1
 		}
 
-		// 构建分析结果
-		structAnalysis := t.buildStructAnalysis(structInfo, deps, task.Depth)
+		// 构建分析结果（不包含 LLM 分析）
+		structAnalysis := t.buildStructAnalysisWithoutLLM(structInfo, deps, task.Depth)
 		result.Structs = append(result.Structs, structAnalysis)
 		result.TotalDeps += len(deps)
+
+		// 记录需要 LLM 分析的任务
+		if t.llmClient != nil && t.llmClient.IsConfigured() {
+			llmTasks = append(llmTasks, llmTask{
+				index: len(result.Structs) - 1,
+				info:  structInfo,
+			})
+		}
 
 		// 将依赖加入队列
 		for _, dep := range deps {
@@ -95,14 +130,127 @@ func (t *Traverser) Analyze(startStruct string, maxDepth int, projectPath string
 
 	result.TotalStructs = len(result.Structs)
 
+	// 并发调用 LLM 分析
+	if len(llmTasks) > 0 {
+		t.enrichWithLLMConcurrently(result, llmTasks)
+	}
+
 	// 检测循环依赖
 	result.Cycles = t.detectCycles(result.Structs)
 
 	return result
 }
 
-// buildStructAnalysis 构建结构体分析结果
-func (t *Traverser) buildStructAnalysis(info *types.StructInfo, deps []types.Dependency, depth int) types.StructAnalysis {
+// enrichWithLLMConcurrently 并发调用 LLM 分析（支持缓存）
+func (t *Traverser) enrichWithLLMConcurrently(result *types.AnalysisResult, tasks []llmTask) {
+	llmProvider := ""
+	if t.llmClient != nil {
+		llmProvider = t.llmClient.Name()
+	}
+
+	// 先检查缓存，分离出需要调用 LLM 的任务
+	var llmCallTasks []llmTask
+	var mu sync.Mutex // 保护 result.Structs
+
+	cacheHits := 0
+	for _, task := range tasks {
+		if t.cache != nil {
+			cached := t.cache.Get(task.info.Name, task.info.SourceCode, llmProvider)
+			if cached != nil {
+				// 缓存命中
+				mu.Lock()
+				t.applyLLMResult(&result.Structs[task.index], cached)
+				mu.Unlock()
+				cacheHits++
+				continue
+			}
+		}
+		llmCallTasks = append(llmCallTasks, task)
+	}
+
+	if t.verbose {
+		println("LLM analysis: cache hits:", cacheHits, ", need to call:", len(llmCallTasks))
+	}
+
+	if len(llmCallTasks) == 0 {
+		return
+	}
+
+	if t.verbose {
+		println("Starting concurrent LLM analysis for", len(llmCallTasks), "structs (max concurrency:", LLMConcurrency, ")")
+	}
+
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, LLMConcurrency) // 限制并发数
+
+	for _, task := range llmCallTasks {
+		wg.Add(1)
+		go func(idx int, info *types.StructInfo) {
+			defer wg.Done()
+			sem <- struct{}{}        // 获取信号量
+			defer func() { <-sem }() // 释放信号量
+
+			if t.verbose {
+				println("Calling LLM for:", info.Name)
+			}
+
+			llmResult, err := t.llmClient.AnalyzeStruct(info)
+			if err != nil {
+				if t.verbose {
+					println("LLM analysis failed for", info.Name, ":", err.Error())
+				}
+				return
+			}
+
+			// 更新结果
+			mu.Lock()
+			t.applyLLMResult(&result.Structs[idx], llmResult)
+			mu.Unlock()
+
+			// 保存到缓存
+			if t.cache != nil {
+				t.cache.Set(info.Name, info.SourceCode, llmProvider, llmResult)
+			}
+		}(task.index, task.info)
+	}
+
+	wg.Wait()
+
+	if t.verbose {
+		println("LLM analysis completed")
+	}
+}
+
+// applyLLMResult 应用 LLM 分析结果到结构体分析
+func (t *Traverser) applyLLMResult(analysis *types.StructAnalysis, llmResult *types.LLMAnalysisResult) {
+	// 更新结构体描述
+	analysis.Description = llmResult.StructDescription
+
+	// 更新字段描述
+	fieldDescMap := make(map[string]string)
+	for _, f := range llmResult.Fields {
+		fieldDescMap[f.Name] = f.Description
+	}
+	for i := range analysis.Fields {
+		if desc, ok := fieldDescMap[analysis.Fields[i].Name]; ok {
+			analysis.Fields[i].Description = desc
+		}
+	}
+
+	// 更新方法描述
+	methodDescMap := make(map[string]string)
+	for _, m := range llmResult.Methods {
+		methodDescMap[m.Name] = m.Description
+	}
+	for i := range analysis.Methods {
+		if desc, ok := methodDescMap[analysis.Methods[i].Name]; ok {
+			analysis.Methods[i].Description = desc
+		}
+	}
+}
+
+// buildStructAnalysisWithoutLLM 构建结构体分析结果（不包含 LLM 分析）
+func (t *Traverser) buildStructAnalysisWithoutLLM(info *types.StructInfo, deps []types.Dependency, depth int) types.StructAnalysis {
 	analysis := types.StructAnalysis{
 		Name:         info.Name,
 		Package:      info.Package,
@@ -135,52 +283,7 @@ func (t *Traverser) buildStructAnalysis(info *types.StructInfo, deps []types.Dep
 		})
 	}
 
-	// 如果有 LLM 客户端，获取描述
-	if t.llmClient != nil {
-		t.enrichWithLLM(&analysis, info)
-	}
-
 	return analysis
-}
-
-// enrichWithLLM 使用 LLM 丰富描述
-func (t *Traverser) enrichWithLLM(analysis *types.StructAnalysis, info *types.StructInfo) {
-	if t.verbose {
-		println("Calling LLM for:", info.Name)
-	}
-
-	llmResult, err := t.llmClient.AnalyzeStruct(info)
-	if err != nil {
-		if t.verbose {
-			println("LLM analysis failed:", err.Error())
-		}
-		return
-	}
-
-	// 更新结构体描述
-	analysis.Description = llmResult.StructDescription
-
-	// 更新字段描述
-	fieldDescMap := make(map[string]string)
-	for _, f := range llmResult.Fields {
-		fieldDescMap[f.Name] = f.Description
-	}
-	for i := range analysis.Fields {
-		if desc, ok := fieldDescMap[analysis.Fields[i].Name]; ok {
-			analysis.Fields[i].Description = desc
-		}
-	}
-
-	// 更新方法描述
-	methodDescMap := make(map[string]string)
-	for _, m := range llmResult.Methods {
-		methodDescMap[m.Name] = m.Description
-	}
-	for i := range analysis.Methods {
-		if desc, ok := methodDescMap[analysis.Methods[i].Name]; ok {
-			analysis.Methods[i].Description = desc
-		}
-	}
 }
 
 // detectCycles 检测循环依赖

@@ -2,14 +2,18 @@
 
 ## 项目概述
 
-`go-struct-analyzer` 是一个 Go 语言结构体依赖分析 CLI 工具，用于分析 Go 项目中结构体之间的依赖关系，并可选使用 LLM API（支持 GLM/Claude）生成代码描述。
+`go-struct-analyzer` 是一个 Go 语言结构体依赖分析工具，提供 **CLI 工具** 和 **公共 API 库** 两种使用方式。用于分析 Go 项目中结构体之间的依赖关系，并可选使用 LLM API（支持 GLM/Claude）生成代码描述。
 
 ## 项目结构
 
 ```
 go-struct-analyzer/
 ├── cmd/analyzer/main.go           # CLI 入口，使用 cobra
-├── internal/
+├── pkg/analyzer/                  # 公共 API 库（供外部项目使用）
+│   ├── analyzer.go                # 主 API: New(), Analyze(), Generate*()
+│   ├── types.go                   # 公共类型定义
+│   └── analyzer_test.go           # 单元测试
+├── internal/                      # 内部实现（外部项目无法导入）
 │   ├── types/models.go            # 核心数据模型定义
 │   ├── parser/
 │   │   ├── parser.go              # AST 解析器，提取结构体/方法
@@ -18,7 +22,8 @@ go-struct-analyzer/
 │   │   ├── dependency.go          # 依赖关系分析
 │   │   ├── traverser.go           # BFS 遍历器
 │   │   ├── blacklist.go           # 黑名单过滤
-│   │   └── scope_filter.go        # 范围过滤（排除标准库/第三方）
+│   │   ├── scope_filter.go        # 范围过滤（排除标准库/第三方）
+│   │   └── cache.go               # LLM 分析结果缓存
 │   ├── llm/
 │   │   ├── interface.go           # LLM 接口定义
 │   │   ├── claude.go              # Claude API 客户端
@@ -28,7 +33,9 @@ go-struct-analyzer/
 │   └── reporter/
 │       ├── markdown.go            # Markdown 报告生成
 │       ├── mermaid.go             # Mermaid 依赖图生成
-│       └── json.go                # JSON 输出
+│       ├── json.go                # JSON 输出
+│       └── visualizer.go          # 可视化工具 JSON 输出
+├── examples/library_usage/        # 库使用示例
 ├── testdata/sample_project/       # 测试用的示例 Go 项目
 ├── blacklist.yaml                 # 默认黑名单配置
 └── requirement.md                 # 原始需求文档（在上级目录）
@@ -90,6 +97,66 @@ go-struct-analyzer/
 ### 重要原则
 - 保持 PROGRESS.md 的准确性，方便其他设备上的 Claude Code 接手
 - 遇到重大技术决策时，更新 CLAUDE.md 的"技术决策"部分
+
+## 作为库使用
+
+### 安装
+
+```bash
+go get github.com/qs3c/anal_go_agent/pkg/analyzer
+```
+
+### 基本使用
+
+```go
+import "github.com/qs3c/anal_go_agent/pkg/analyzer"
+
+// 创建分析器
+a, err := analyzer.New(analyzer.Options{
+    ProjectPath: "./myproject",
+    StartStruct: "UserService",
+    MaxDepth:    2,
+})
+
+// 执行分析
+result, err := a.Analyze()
+
+// 使用结果
+fmt.Printf("Found %d structs\n", result.TotalStructs)
+
+// 生成报告
+md, _ := a.GenerateMarkdown()
+a.SaveMarkdown("./report.md")
+```
+
+### 使用 LLM
+
+```go
+a, _ := analyzer.New(analyzer.Options{
+    ProjectPath: "./myproject",
+    StartStruct: "UserService",
+    MaxDepth:    2,
+    LLMProvider: "glm",  // 或 "claude"
+    APIKey:      os.Getenv("GLM_API_KEY"),
+    EnableCache: true,   // 启用缓存
+})
+```
+
+### 查询结果
+
+```go
+// 按名称获取结构体
+s := result.GetStructByName("UserService")
+
+// 按深度获取
+depth0 := result.GetStructsByDepth(0)
+
+// 获取依赖关系
+deps := result.GetDependenciesOf("UserService")
+dependents := result.GetDependentsOf("UserRepository")
+```
+
+更多示例见: `examples/library_usage/main.go`
 
 ## 注意事项
 

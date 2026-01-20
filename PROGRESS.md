@@ -53,6 +53,18 @@
 - [x] 清空功能（Clear All 按钮）
 - [x] TypeScript 编译通过，构建成功
 
+### Phase 6: 公共 API 库 ✅ (2026-01-20)
+- [x] 创建 `pkg/analyzer` 公共 API 包
+  - `pkg/analyzer/analyzer.go`: 主 API，`New()` 和 `Analyze()` 方法
+  - `pkg/analyzer/types.go`: 公共类型定义
+  - `pkg/analyzer/analyzer_test.go`: 单元测试
+- [x] 支持的功能:
+  - 基本分析: `Analyze()` 返回 `*Result`
+  - 报告生成: `GenerateMarkdown()`, `GenerateJSON()`, `GenerateMermaid()`
+  - 文件保存: `SaveMarkdown()`, `SaveJSON()`, `SaveMermaid()`
+  - 结果查询: `GetStructByName()`, `GetStructsByDepth()`, `GetDependenciesOf()`, `GetDependentsOf()`
+- [x] 使用示例: `examples/library_usage/main.go`
+
 ---
 
 ## 待完成/优化
@@ -76,9 +88,20 @@
   - 报告模块: 更新 markdown.go, mermaid.go, visualizer.go 支持新依赖类型
 
 ### 中优先级
-- [ ] 并发解析多个文件（性能优化）
-- [ ] LLM 并发调用限制
-- [ ] 缓存已分析的结构体
+- [x] 并发解析多个文件（性能优化） ✅ (2026-01-20)
+  - `internal/parser/parser.go`: 添加 `sync.RWMutex`，实现 `parseFilesConcurrently()` 和 `extractAllConcurrently()`
+  - 使用 worker pool 模式，限制并发数为 `min(CPU核数, 8)`
+  - `internal/parser/parser_test.go`: 添加并发解析单元测试
+- [x] LLM 并发调用限制 ✅ (2026-01-20)
+  - `internal/analyzer/traverser.go`: 添加 `LLMConcurrency = 3` 常量
+  - 分离 BFS 遍历和 LLM 分析，实现 `enrichWithLLMConcurrently()`
+  - 使用信号量控制 LLM 并发调用数
+- [x] 缓存已分析的结构体 ✅ (2026-01-20)
+  - `internal/analyzer/cache.go`: 实现 `AnalysisCache` 类型
+  - 基于源码哈希判断缓存有效性
+  - 区分不同 LLM 提供商的缓存
+  - CLI 添加 `--no-cache` 参数禁用缓存
+  - `internal/analyzer/cache_test.go`: 添加缓存单元测试
 
 ### 低优先级
 - [ ] 泛型类型支持
@@ -105,13 +128,14 @@
 最后一次测试结果 (2026-01-20):
 ```
 项目路径: testdata/sample_project
-起点结构体: UserRepository
-分析深度: 1
-结果: 成功分析 2 个结构体，4 个依赖关系
-新增功能测试:
-  - 接口实现检测: ✅ UserRepository -->|实现| UserRepositoryInterface
-  - 构造函数调用检测: ✅ 支持 NewXxx() 模式推断
-所有单元测试: ✅ 通过
+起点结构体: UserService
+分析深度: 2
+结果: 成功分析 6 个结构体，10 个依赖关系
+性能优化:
+  - 并发文件解析: ✅ 已实现 (worker pool, max 8)
+  - LLM 并发限制: ✅ 已实现 (max 3)
+  - LLM 缓存: ✅ 已实现 (基于源码哈希)
+所有单元测试: ✅ 通过 (含 race detector)
 输出: analysis_report.md
 ```
 
@@ -121,5 +145,5 @@
 
 1. 考虑添加更多 LLM 后端支持
 2. 处理跨包类型解析的边缘情况
-3. 并发解析多个文件（性能优化）
-4. 清理 cmd/debug 目录（调试工具）
+3. 清理 cmd/debug 目录（调试工具）
+4. 实现低优先级功能（泛型支持、匿名结构体处理）
