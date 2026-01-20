@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-**最后更新**: 2026-01-19
+**最后更新**: 2026-01-20
 **当前阶段**: MVP 完成，待测试和优化
 
 ---
@@ -58,12 +58,22 @@
 ## 待完成/优化
 
 ### 高优先级
-- [x] 单元测试编写 ✅ (2026-01-19)
+- [x] 单元测试编写 ✅ (2026-01-19, 2026-01-20)
   - `internal/parser/type_resolver_test.go` - 类型推断测试
   - `internal/analyzer/scope_filter_test.go` - 范围过滤测试
   - `internal/analyzer/blacklist_test.go` - 黑名单测试
-- [ ] 接口实现关系检测（当前未完全实现）
-- [ ] 构造函数返回类型推断优化
+  - `internal/reporter/reporter_test.go` - 报告生成测试 ✅ (2026-01-20)
+  - `internal/llm/llm_test.go` - LLM 模块测试 ✅ (2026-01-20)
+- [x] 接口实现关系检测 ✅ (2026-01-20)
+  - `internal/types/models.go`: 添加 InterfaceInfo, InterfaceMethod, FunctionInfo 类型
+  - `internal/parser/parser.go`: 添加接口解析 (extractInterfaces, GetInterface, GetAllInterfaces)
+  - `internal/analyzer/dependency.go`: 添加 analyzeInterfaceImpl() 检测结构体实现的接口
+  - `internal/analyzer/scope_filter.go`: 修复 isInternalType() 支持接口类型
+- [x] 构造函数返回类型推断优化 ✅ (2026-01-20)
+  - `internal/parser/parser.go`: 添加函数解析 (extractFunctions, GetFunction, GetFunctionByReturnType)
+  - `internal/analyzer/dependency.go`: 添加 analyzeConstructorCall() 检测 NewXxx() 调用
+  - `internal/types/models.go`: 添加 DepTypeConstructor 依赖类型
+  - 报告模块: 更新 markdown.go, mermaid.go, visualizer.go 支持新依赖类型
 
 ### 中优先级
 - [ ] 并发解析多个文件（性能优化）
@@ -92,14 +102,16 @@
 
 ## 测试验证
 
-最后一次测试结果 (2026-01-19):
+最后一次测试结果 (2026-01-20):
 ```
 项目路径: testdata/sample_project
-起点结构体: UserService
-分析深度: 2
-LLM 后端: GLM
-结果: 成功分析 6 个结构体，10 个依赖关系
-LLM 描述生成: ✅ 成功
+起点结构体: UserRepository
+分析深度: 1
+结果: 成功分析 2 个结构体，4 个依赖关系
+新增功能测试:
+  - 接口实现检测: ✅ UserRepository -->|实现| UserRepositoryInterface
+  - 构造函数调用检测: ✅ 支持 NewXxx() 模式推断
+所有单元测试: ✅ 通过
 输出: analysis_report.md
 ```
 
@@ -107,8 +119,7 @@ LLM 描述生成: ✅ 成功
 
 ## 下次工作建议
 
-1. 在浏览器中实际测试前端导入功能（localhost:5173）
-2. 实现接口实现关系检测
-3. 考虑添加更多 LLM 后端支持
-4. 处理跨包类型解析的边缘情况
-5. 补充更多模块的单元测试（reporter、llm）
+1. 考虑添加更多 LLM 后端支持
+2. 处理跨包类型解析的边缘情况
+3. 并发解析多个文件（性能优化）
+4. 清理 cmd/debug 目录（调试工具）

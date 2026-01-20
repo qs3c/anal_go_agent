@@ -5,6 +5,15 @@ import (
 	"sample_project/model"
 )
 
+// UserRepositoryInterface 定义用户仓库的接口
+type UserRepositoryInterface interface {
+	Save(user model.User) error
+	FindByID(id int64) (*model.User, error)
+	Update(user *model.User) error
+	Delete(id int64) error
+	FindAll() ([]*model.User, error)
+}
+
 // UserRepository 处理用户数据的持久化操作
 type UserRepository struct {
 	db *Database

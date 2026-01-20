@@ -281,6 +281,8 @@ func (r *VisualizerReporter) depTypeToLabel(depType string) string {
 		return "实现"
 	case types.DepTypeEmbed:
 		return "嵌入"
+	case types.DepTypeConstructor:
+		return "构造"
 	default:
 		return depType
 	}

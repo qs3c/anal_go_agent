@@ -28,6 +28,30 @@ type MethodInfo struct {
 	SourceCode string // 方法源代码
 }
 
+// InterfaceInfo 表示接口信息
+type InterfaceInfo struct {
+	Name       string              // 接口名称
+	Package    string              // 所属包名
+	FilePath   string              // 所在文件路径
+	Methods    []InterfaceMethod   // 方法列表
+	SourceCode string              // 接口源代码
+}
+
+// InterfaceMethod 表示接口方法签名
+type InterfaceMethod struct {
+	Name      string // 方法名
+	Signature string // 完整签名（参数和返回值）
+}
+
+// FunctionInfo 表示函数信息（用于构造函数检测）
+type FunctionInfo struct {
+	Name       string // 函数名
+	Package    string // 所属包名
+	FilePath   string // 所在文件路径
+	ReturnType string // 返回类型
+	Signature  string // 完整签名
+}
+
 // StructAnalysis 表示分析后的结构体信息（包含LLM描述）
 type StructAnalysis struct {
 	Name         string           // 结构体名称
@@ -106,9 +130,10 @@ type LLMAnalysisResult struct {
 
 // DependencyType 定义依赖类型常量
 const (
-	DepTypeField      = "field"       // 字段依赖
-	DepTypeInit       = "init"        // 方法内初始化
-	DepTypeMethodCall = "method_call" // 方法调用
-	DepTypeInterface  = "interface"   // 接口实现
-	DepTypeEmbed      = "embed"       // 结构体嵌入
+	DepTypeField       = "field"       // 字段依赖
+	DepTypeInit        = "init"        // 方法内初始化
+	DepTypeMethodCall  = "method_call" // 方法调用
+	DepTypeInterface   = "interface"   // 接口实现
+	DepTypeEmbed       = "embed"       // 结构体嵌入
+	DepTypeConstructor = "constructor" // 构造函数调用
 )

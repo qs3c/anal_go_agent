@@ -270,6 +270,8 @@ func getDepTypeLabel(depType string) string {
 		return "接口实现"
 	case types.DepTypeEmbed:
 		return "结构体嵌入"
+	case types.DepTypeConstructor:
+		return "构造函数调用"
 	default:
 		return "依赖"
 	}

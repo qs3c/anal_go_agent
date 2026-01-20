@@ -95,6 +95,10 @@ func (sf *ScopeFilter) isInternalType(typeName string) bool {
 		if sf.parser.GetStruct(typeName) != nil {
 			return true
 		}
+		// 检查是否在已知接口中
+		if sf.parser.GetInterface(typeName) != nil {
+			return true
+		}
 		// 如果在已知包中，也认为是内部类型
 		for _, pkg := range sf.projectPackages {
 			if pkg == typeName {
@@ -119,9 +123,14 @@ func (sf *ScopeFilter) isInternalType(typeName string) bool {
 		}
 	}
 
-	// 如果不包含 "/" 且解析器能找到该结构体，认为是内部类型
-	if !strings.Contains(typeName, "/") && sf.parser.GetStruct(typeName) != nil {
-		return true
+	// 如果不包含 "/" 且解析器能找到该结构体或接口，认为是内部类型
+	if !strings.Contains(typeName, "/") {
+		if sf.parser.GetStruct(typeName) != nil {
+			return true
+		}
+		if sf.parser.GetInterface(typeName) != nil {
+			return true
+		}
 	}
 
 	return false
